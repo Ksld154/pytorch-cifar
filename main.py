@@ -62,13 +62,13 @@ classes = ('plane', 'car', 'bird', 'cat', 'deer',
 # Model
 print('==> Building model..')
 # net = VGG('VGG19')
-# net = ResNet18()
+net = ResNet18()
 # net = PreActResNet18()
 # net = GoogLeNet()
 # net = DenseNet121()
 # net = ResNeXt29_2x64d()
 # net = MobileNet()
-net = MobileNetV2()
+# net = MobileNetV2()
 # net = DPN92()
 # net = ShuffleNetG2()
 # net = SENet18()
@@ -86,13 +86,13 @@ net = net.to(device)
 torchsummary.summary(net, (3,28,28))
 print(net.layers)
 
-for idx, l in enumerate(net.layers):
-    print(l)
-    if idx <= 10:
-        l.requires_grad_(False)
-    # print(l.requires_grad_)
-    # print(len(l.parameters))
-    print('==============')
+# for idx, l in enumerate(net.layers):
+#     print(l)
+#     if idx <= 10:
+#         l.requires_grad_(False)
+#     # print(l.requires_grad_)
+#     # print(len(l.parameters))
+#     print('==============')
 
 # update optimizer after freezing
 # optimizer = optim.SGD(filter(lambda p: p.requires_grad, net.parameters()), lr=args.lr, momentum=0.9, weight_decay=5e-4)

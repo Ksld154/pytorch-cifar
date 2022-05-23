@@ -19,8 +19,7 @@ from utils import progress_bar
 
 
 EPOCHS = 50
-os.environ["CUDA_VISIBLE_DEVICES"] = "0" 
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+# os.environ["CUDA_VISIBLE_DEVICES"] = "0" 
 best_acc = 0  # best test accuracy
 start_epoch = 0  # start from epoch 0 or last checkpoint epoch
 
@@ -30,7 +29,9 @@ def opts_parser():
     parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
     parser.add_argument('--resume', '-r', action='store_true',
                         help='resume from checkpoint')
-    parser.add_argument('--epochs', default=20, type=int, help='Train epochs')
+    parser.add_argument('--epochs', default=50, type=int, help='Train epochs')
+    parser.add_argument('--gpu', default=0, type=int, help='GPU ID')
+
 
     args = parser.parse_args()
     return args
@@ -66,14 +67,18 @@ def data_preprossing():
     return trainloader, testloader
 
 # Model
-class Trainer():
+class Model():
     def __init__(self, args, trainloader, testloader, freeze_degree) -> None:
-       self.args = args
-       self.trainloader = trainloader
-       self.testloader = testloader
-       self.freeze_degree = freeze_degree
-       
-       self.net, self.criterion, self.optimizer, self.scheduler = self.build_model()
+        self.args = args
+        self.trainloader = trainloader
+        self.testloader = testloader
+        
+        self.freeze_degree = freeze_degree
+        self.accuracy = []
+
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.net, self.criterion, self.optimizer, self.scheduler = self.build_model()
+
     
     def build_model(self):
         print('==> Building model..')
@@ -94,15 +99,20 @@ class Trainer():
         # net = SimpleDLA()
 
         # print(torch.cuda.device_count())
-        net = net.to(device)
+        net = net.to(self.device)
 
-        torchsummary.summary(net, (3,28,28))
+        # torchsummary.summary(net, (3,28,28))
+        # print(net.__dict__)
+        # print(net.modules)
 
         # print(net.layers)
+        # print(len(net.layers))
+        # net.layers[2][1].requires_grad_(False)
+        
         # for idx, l in enumerate(net.layers):
         #     print(l)
-        #     if idx <= self.freeze_degree:
-        #         l.requires_grad_(False)
+        #     # if idx <= self.freeze_degree:
+        #     #     l.requires_grad_(False)
         #     # print(l.requires_grad_)
         #     # print(len(l.parameters))
         #     print('==============')
@@ -136,7 +146,7 @@ class Trainer():
         correct = 0
         total = 0
         for batch_idx, (inputs, targets) in enumerate(self.trainloader):
-            inputs, targets = inputs.to(device), targets.to(device)
+            inputs, targets = inputs.to(self.device), targets.to(self.device)
             self.optimizer.zero_grad()
             outputs = self.net(inputs)
             loss = self.criterion(outputs, targets)
@@ -160,7 +170,7 @@ class Trainer():
         total = 0
         with torch.no_grad():
             for batch_idx, (inputs, targets) in enumerate(self.testloader):
-                inputs, targets = inputs.to(device), targets.to(device)
+                inputs, targets = inputs.to(self.device), targets.to(self.device)
                 outputs = self.net(inputs)
                 loss = self.criterion(outputs, targets)
 
@@ -174,6 +184,7 @@ class Trainer():
 
         # Save checkpoint.
         acc = 100.*correct/total
+        self.accuracy.append(acc/100)
         if acc > best_acc:
             print('Saving..')
             state = {
@@ -193,6 +204,8 @@ class Trainer():
             if idx <= self.freeze_degree:
                 l.requires_grad_(False)
             print('==============')
+        # optimizer = optim.SGD(filter(lambda p: p.requires_grad, net.parameters()), lr=args.lr, momentum=0.9, weight_decay=5e-4)
+        
         self.optimizer = optim.SGD(self.net.parameters(), lr=self.args.lr, momentum=0.9, weight_decay=5e-4)
         self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=200)
         torchsummary.summary(self.net, (3,28,28))
@@ -201,8 +214,11 @@ class Trainer():
 
 def main():
     args = opts_parser()
+    print(f'GPU ID: {args.gpu}')
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu) 
+
     trainloader, testloader = data_preprossing()
-    primary_trainer = Trainer(args=args, trainloader=trainloader, testloader=testloader, freeze_degree=5)
+    primary_trainer = Model(args=args, trainloader=trainloader, testloader=testloader, freeze_degree=0)
 
 
     for epoch in range(start_epoch, start_epoch + args.epochs):
@@ -210,9 +226,10 @@ def main():
         primary_trainer.test_epoch(epoch)
         primary_trainer.scheduler.step()
 
-        if epoch == 5:
-            primary_trainer.static_freeze_model()
+        # if epoch == 5:
+        #     primary_trainer.static_freeze_model()
 
+    print(primary_trainer.accuracy)
                 
             
 
