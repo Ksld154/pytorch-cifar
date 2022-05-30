@@ -56,7 +56,8 @@ class Trainer():
         # self.model.summary()
 
         # self.optimizer = optim.SGD(self.net.parameters(), lr=self.args.lr, momentum=0.9, weight_decay=5e-4)
-        self.optimizer = optim.SGD(filter(lambda p: p.requires_grad, self.model.net.parameters()), lr=self.args.lr, momentum=0.9, weight_decay=5e-4)
+        # self.optimizer = optim.SGD(filter(lambda p: p.requires_grad, self.model.net.parameters()), lr=self.args.lr, momentum=0.9, weight_decay=5e-4)
+        self.optimizer = optim.SGD(filter(lambda p: p.requires_grad, self.model.net.parameters()), lr=self.args.lr, momentum=0.5)
         self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=200)
         # torchsummary.summary(self.model.net, (3,28,28))
 
@@ -83,6 +84,7 @@ class Trainer():
 
         loss, acc = self.model.test_epoch(e)
         print(loss, acc)
+        self.model.scheduler.step()
 
         self.save_loss_delta(loss)
         self.loss.append(loss)

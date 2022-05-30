@@ -23,7 +23,7 @@ class Client():
         self.args = cmd_args
 
         self.epochs = 10
-        self.pre_epochs = cmd_args.pre_epochs
+        self.pre_epochs = cmd_args.pre_epochs_ratio * self.epochs
         self.loss_delta = []
 
         self.all_trainers = []
@@ -38,6 +38,9 @@ class Client():
         print(self.args.lr)
 
         self.epochs = self.args.epochs
+        self.pre_epochs = int(self.args.pre_epochs_ratio * self.epochs)
+        print(f'Total Epochs: {self.epochs}, Pre-Epochs: {self.pre_epochs}')
+
         self.setup_folders()
         pretrained_trainer = self.setup_and_pretrain(model_type=self.args.model)
         
@@ -49,20 +52,25 @@ class Client():
 
         if self.args.static_freeze:
             self.train_all_static_freeze_model(pretrained_trainer=pretrained_trainer)
-            self.all_metrics = self.print_metrics(gf_primary_trainer=gf1.primary_trainer)
+            
+            if self.args.gradually_freeze:
+                self.all_metrics = self.print_metrics(gf_primary_trainer=gf1.primary_trainer)
+            else:
+                self.all_metrics = self.print_metrics(gf_primary_trainer=None)
+                
 
     def setup_folders(self):
+        self.base_filename = f"{self.args.model}_e={self.args.epochs}_pre={self.args.pre_epochs_ratio}_window={self.args.window_size}_static{self.args.static_freeze}_gf{self.args.gradually_freeze}"
+        print(self.base_filename)
+        
         base_dir = os.path.dirname(__file__)
         now = datetime.datetime.now()
         dt_string = now.strftime("%m-%d-%Y_%H%M%S")
-        results_dir = os.path.join(base_dir, 'results/', dt_string)
+        results_dir = os.path.join(base_dir, 'results/', f'{dt_string}_{self.base_filename}')
         if not os.path.isdir(results_dir):
             os.makedirs(results_dir)
         print(results_dir)
-
         self.results_dir = results_dir
-        self.base_filename = f"{self.args.model}_e={self.args.epochs}_pre={self.args.pre_epochs}_window={self.args.window_size}_static{self.args.static_freeze}_gf{self.args.gradually_freeze}"
-        print(self.base_filename)
 
     def setup_and_pretrain(self, model_type):
         # do pre-training before freezing
@@ -86,7 +94,7 @@ class Client():
 
 
     def train_all_static_freeze_model(self, pretrained_trainer):
-        for i in range(5):
+        for i in range(self.args.static_freeze_candidates):
             if i*pretrained_trainer.freeze_step_size >= len(pretrained_trainer.model.net.layers):
                 break
 
@@ -95,21 +103,20 @@ class Client():
             if i == 0:
                 new_trainer.name = 'Baseline: No Freeze'
             new_trainer.accuracy = copy.deepcopy(pretrained_trainer.accuracy)
-            # new_trainer.model.summary()
+            new_trainer.model.summary()
             self.all_trainers.append(new_trainer)
             
 
         all_acc = []
         for t in self.all_trainers:
             print(f'Static freeze degree: {t.freeze_idx}')
-            for e in range(self.epochs):
+            for e in range(self.epochs-self.pre_epochs):
                 print(f'[Training Epoch {e+1}/{self.epochs}]')
                 t.train_and_test_epoch(e+1)
                 t.calc_frozen_ratio()
             print(t.accuracy)
             all_acc.append(t.accuracy)
 
-        for t in self.all_trainers:
             d = dict(name=t.name, acc=t.accuracy)
             self.all_results.append(d)
 
@@ -130,25 +137,26 @@ class Client():
         tools.new_plotter.save_figure(png_file)
         tools.new_plotter.show()
 
-    def print_metrics(self, gf_primary_trainer):
+    def print_metrics(self, gf_primary_trainer=None):
         table_header = ['Model', 'Training time', 'Transmission parameter volume', 'Save Transmission Ratio']
         table_data = []
         total_transmitted_params = self.all_trainers[0].total_trainable_weights
         
         all_metrics = [] # for output csv
 
-        table_data.append(
-            (gf_primary_trainer.name, gf_primary_trainer.total_training_time, gf_primary_trainer.total_trainable_weights, 
-            f'{ (1 - (gf_primary_trainer.total_trainable_weights/total_transmitted_params) ) * 100} %')
-        )
-        all_metrics.append(
-            dict(
-                name=gf_primary_trainer.name, 
-                total_training_time=gf_primary_trainer.total_training_time, 
-                total_trainable_weights=gf_primary_trainer.total_trainable_weights, 
-                save_transmission_ratio=f'{ (1 - (gf_primary_trainer.total_trainable_weights/total_transmitted_params) ) * 100} %'
+        if gf_primary_trainer:  
+            table_data.append(
+                (gf_primary_trainer.name, gf_primary_trainer.total_training_time, gf_primary_trainer.total_trainable_weights, 
+                f'{ (1 - (gf_primary_trainer.total_trainable_weights/total_transmitted_params) ) * 100} %')
             )
-        )
+            all_metrics.append(
+                dict(
+                    name=gf_primary_trainer.name, 
+                    total_training_time=gf_primary_trainer.total_training_time, 
+                    total_trainable_weights=gf_primary_trainer.total_trainable_weights, 
+                    save_transmission_ratio=f'{ (1 - (gf_primary_trainer.total_trainable_weights/total_transmitted_params) ) * 100} %'
+                )
+            )
 
         # Static Freezing Metrics
         for trainer in self.all_trainers:
@@ -210,7 +218,7 @@ class GraduallyFreezing():
         primary_trainer.name = f"Primary (degree={primary_trainer.freeze_idx})"
 
         # In each training epochs
-        for e in range(self.epochs):
+        for e in range(self.epochs-self.pre_epochs):
         
             secondary_trainer = primary_trainer.generate_secondary_trainer(secondary_trainer)
         
@@ -280,8 +288,8 @@ class GraduallyFreezing():
 
         primary_trainer.name = 'Gradually Freezing: Primary Model'
         secondary_trainer.name = "Gradually Freezing: Secondary Model"
-        primary_results = dict(name=primary_trainer.name, acc=primary_trainer.accuracy, layers=primary_trainer.layer_history, training_time=primary_trainer.total_training_time)
-        secondary_results = dict(name=secondary_trainer.name, acc=secondary_trainer.accuracy, layers=secondary_trainer.layer_history, training_time=secondary_trainer.total_training_time)
+        primary_results = dict(name=primary_trainer.name, acc=primary_trainer.accuracy, total_time=str(primary_trainer.total_training_time), freeze_degree=primary_trainer.layer_history)
+        secondary_results = dict(name=secondary_trainer.name, acc=secondary_trainer.accuracy, total_time=str(secondary_trainer.total_training_time), freeze_degree=secondary_trainer.layer_history)
 
         return primary_results, secondary_results
 
@@ -353,8 +361,8 @@ if __name__ == '__main__':
     print(f'Total training time: {datetime.timedelta(seconds= end-start)}')
 
 
-    client_1.output_csv(client_1.all_results, "results.csv", ["name", "acc"])
-    client_1.output_csv(client_1.all_metrics, "metrics.csv", ["name", "total_training_time", "total_trainable_weights", "save_transmission_ratio"])
+    client_1.output_csv(client_1.all_results, f"results_{client_1.base_filename}.csv", ["name", "acc", "total_time", "freeze_degree"])
+    client_1.output_csv(client_1.all_metrics, f"metrics_{client_1.base_filename}.csv", ["name", "total_training_time", "total_trainable_weights", "save_transmission_ratio"])
     print(client_1.all_results)
     print(f'Total training time: {datetime.timedelta(seconds= end-start)}')
     client_1.plot_figure()

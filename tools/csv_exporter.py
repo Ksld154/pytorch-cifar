@@ -13,13 +13,16 @@ def export_csv(data: list[dict], filepath: str, fields: list[str]):
             
 
 def import_csv(filepath: str) -> list[dict]:
+    data = []
     with open(file=filepath, newline='') as csvfile:
         rows = csv.DictReader(csvfile)
-        # for row in rows:
-        #     print(row)
-        #     acc = eval(row['acc'])
-        #     print(acc[1])
-    return rows
+        for row in rows:
+            data.append(row)
+            # print(row)
+            # acc = eval(row['acc'])
+            # print(acc[1])
+    # return rows
+    return data
 
 
 if __name__ == '__main__':

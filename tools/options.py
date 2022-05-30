@@ -5,13 +5,12 @@ def opt_parser():
     usage = 'Trains and tests a Gradual layer freezing LeNet-5 model with CIFAR10.'
     parser = argparse.ArgumentParser(description=usage)
 
-    parser.add_argument(
-        '-o',
-        '--overlap',
-        default=True,
-        dest='transmission_overlap',
-        help='Transmission overlap with next model training (default: %(default)s)',
-        action=argparse.BooleanOptionalAction)
+    parser.add_argument('-o',
+                        '--overlap',
+                        default=True,
+                        dest='transmission_overlap',
+                        help='Transmission overlap with next model training (default: %(default)s)',
+                        action=argparse.BooleanOptionalAction)
     parser.add_argument('-d',
                         '--dryrun',
                         default=False,
@@ -24,13 +23,12 @@ def opt_parser():
                         dest='all_experiments',
                         help='Do 3 experiments at once (default: %(default)s)',
                         action=argparse.BooleanOptionalAction)
-    parser.add_argument(
-        '-t',
-        '--transmission-time',
-        default=30,
-        type=int,
-        dest='transmission_time',
-        help='Mock tensor transmission time (default: %(default)s)')
+    parser.add_argument('-t',
+                        '--transmission-time',
+                        default=30,
+                        type=int,
+                        dest='transmission_time',
+                        help='Mock tensor transmission time (default: %(default)s)')
     parser.add_argument('-e',
                         '--epochs',
                         default=10,
@@ -71,37 +69,42 @@ def opt_parser():
                         dest='freeze_idx',
                         type=int,
                         help='Freeze degree (default: %(default)s)')
-    parser.add_argument(
-        '--window_size', type=int, default=5,
-        help='Moving average window size for model loss difference (default: %(default)s)')
+
+    ### Active Options ###
+    parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
+    parser.add_argument('--model',
+                        default='mobilenet',
+                        dest='model',
+                        type=str,
+                        help='Model Type (default: %(default)s)')
+    
+    parser.add_argument('--window_size', 
+                        type=int, default=5,
+                        help='Moving average window size for model loss difference (default: %(default)s)')
+
+    parser.add_argument('--gradually-freeze',
+                        default=True,
+                        dest='gradually_freeze',
+                        action=argparse.BooleanOptionalAction,
+                        help='Train Gradually Freeze Models (default: %(default)s)')
 
     parser.add_argument('--static-freeze',
-                    default=True,
-                    dest='static_freeze',
-                    action=argparse.BooleanOptionalAction,
-                    help='Train all Static Freeze Models (default: %(default)s)')
-    parser.add_argument('--gradually-freeze',
-                    default=True,
-                    dest='gradually_freeze',
-                    action=argparse.BooleanOptionalAction,
-                    help='Train Gradually Freeze Models (default: %(default)s)')
+                        default=True,
+                        dest='static_freeze',
+                        action=argparse.BooleanOptionalAction,
+                        help='Train all Static Freeze Models (default: %(default)s)')
 
     parser.add_argument('--static-freeze-candidates',
-                    default=5,
-                    dest='static_freeze_candidates',
-                    type=int,
-                    help='Candidate Static Freeze Degree (default: %(default)s)')
-    parser.add_argument('--model',
-                default='mobilenet',
-                dest='model',
-                type=str,
-                help='Model Type (default: %(default)s)')
-    parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
+                        default=5,
+                        dest='static_freeze_candidates',
+                        type=int,
+                        help='Candidate Static Freeze Degree (default: %(default)s)')
+
     
     parser.add_argument('--pre-epochs',
-                        dest='pre_epochs',
-                        default=3,
-                        type=int,
+                        dest='pre_epochs_ratio',
+                        default=0.1,
+                        type=float,
                         help='Pre-Training epoches (default: %(default))')
 
     return parser.parse_args()

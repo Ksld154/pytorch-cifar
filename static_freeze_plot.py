@@ -1,4 +1,6 @@
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
+
 import datetime
 import os
 
@@ -67,12 +69,28 @@ def save_figure(title):
 
 
 def show():
-    plt.show()
+    plt.tight_layout()
+    plt.show(block=False)
+    plt.pause(10)
+    plt.close()
 
+def simple_plot(data):
+    ax1 = plt.figure(figsize=(8, 6)).gca()
+    ax1.xaxis.set_major_locator(MaxNLocator(integer=True)) # integer x-axis
+    plt.ylabel('Accuracy')  # y label
+    plt.xlabel("Epochs")  # x label
+
+    plt.plot(data,
+            label='Static_3',
+            marker="o",
+            linestyle="-")
+    plt.legend()
 
 if __name__ == '__main__':
     # offline_plot(1, "Gradually Freezing w/ Model Switching Accuracy", "Accuracy")
-    offline_plot(1, "MobileNetV2 Static Freezing at epoch=5", "Accuracy")
+    # offline_plot(1, "MobileNetV2 Static Freezing at epoch=5", "Accuracy")
 
-
-    plt.show()
+    data = [0.5196000000000001, 0.5987, 0.7031999999999999, 0.7693000000000001, 0.7698999999999999, 0.8023, 0.8234, 0.8248000000000001, 0.841, 0.8401000000000001, 0.8562000000000001, 0.8661, 0.8803, 0.871, 0.8765999999999999, 0.8919, 0.8852, 0.8948999999999999, 0.8751000000000001, 0.878, 0.8965000000000001, 0.8998999999999999, 0.8909, 0.8901, 0.8941, 0.8962, 0.888, 0.8991, 0.8951, 0.9075, 0.897, 0.905, 0.8943000000000001, 0.895, 0.8996999999999999, 0.903, 0.9079, 0.9041, 0.9062, 0.9015000000000001, 0.9035, 0.9026000000000001, 0.9041, 0.9084, 0.9131999999999999, 0.9044, 0.909, 0.9068999999999999, 0.9081, 0.9048]
+    simple_plot(data=data)
+    plt.savefig('tmp.png')
+    show()

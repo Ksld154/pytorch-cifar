@@ -77,14 +77,17 @@ net = ResNet18()
 # net = RegNetX_200MF()
 # net = SimpleDLA()
 
-print(torch.cuda.device_count() )
+print(torch.cuda.device_count())
 net = net.to(device)
 # if device == 'cuda':
 #     net = torch.nn.DataParallel(net)
 #     cudnn.benchmark = True
 
 torchsummary.summary(net, (3,28,28))
-print(net.layers)
+# print(net.layers)
+
+print(net.modules())
+print(len(net.modules()))
 
 # for idx, l in enumerate(net.layers):
 #     print(l)
@@ -174,10 +177,10 @@ def test(epoch):
 
 
 for epoch in range(start_epoch, start_epoch+EPOCHS):
-    pass
-    # train(epoch)
-    # test(epoch)
-    # scheduler.step()
+    # pass
+    train(epoch)
+    test(epoch)
+    scheduler.step()
 
     if epoch == 10:
         pass

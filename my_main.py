@@ -83,13 +83,13 @@ class Model():
     def build_model(self):
         print('==> Building model..')
         # net = VGG('VGG19')
-        # net = ResNet18()
+        net = ResNet18()
         # net = PreActResNet18()
         # net = GoogLeNet()
         # net = DenseNet121()
         # net = ResNeXt29_2x64d()
         # net = MobileNet()
-        net = MobileNetV2()
+        # net = MobileNetV2()
         # net = DPN92()
         # net = ShuffleNetG2()
         # net = SENet18()
@@ -106,7 +106,10 @@ class Model():
         # print(net.modules)
 
         # print(net.layers)
-        # print(len(net.layers))
+        print(len(net.layers))
+        l = [module for module in net.modules() if not isinstance(module, nn.Sequential)]
+        # print(l)
+        # print(len(net.modules()))
         # net.layers[2][1].requires_grad_(False)
         
         # for idx, l in enumerate(net.layers):
@@ -132,7 +135,7 @@ class Model():
             start_epoch = checkpoint['epoch']
 
         criterion = nn.CrossEntropyLoss()
-        optimizer = optim.SGD(net.parameters(), lr=self.args.lr, momentum=0.9, weight_decay=5e-4)
+        optimizer = optim.SGD(net.parameters(), lr=self.args.lr, momentum=0.5)
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
 
         return net, criterion, optimizer, scheduler
@@ -198,15 +201,15 @@ class Model():
             best_acc = acc
 
 
-    def static_freeze_model(self):
+    def static_freeze_model(self, degree=0):
         for idx, l in enumerate(self.net.layers):
-            print(l)
-            if idx <= self.freeze_degree:
+            # print(l)
+            if idx < degree:
                 l.requires_grad_(False)
-            print('==============')
-        # optimizer = optim.SGD(filter(lambda p: p.requires_grad, net.parameters()), lr=args.lr, momentum=0.9, weight_decay=5e-4)
-        
-        self.optimizer = optim.SGD(self.net.parameters(), lr=self.args.lr, momentum=0.9, weight_decay=5e-4)
+            # print('==============')
+        # self.optimizer = optim.SGD(self.net.parameters(), lr=self.args.lr, momentum=0.9, weight_decay=5e-4)
+
+        self.optimizer = optim.SGD(filter(lambda p: p.requires_grad, self.net.parameters()), lr=self.args.lr, momentum=0.5) 
         self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=200)
         torchsummary.summary(self.net, (3,28,28))
         
@@ -220,16 +223,20 @@ def main():
     trainloader, testloader = data_preprossing()
     primary_trainer = Model(args=args, trainloader=trainloader, testloader=testloader, freeze_degree=0)
 
-
+    original_frozen_params = sum(p.numel() for p in primary_trainer.net.parameters() if not p.requires_grad)
+    print(original_frozen_params)
     for epoch in range(start_epoch, start_epoch + args.epochs):
-        primary_trainer.train_epoch(epoch)
-        primary_trainer.test_epoch(epoch)
+        primary_trainer.train_epoch(epoch+1)
+        primary_trainer.test_epoch(epoch+1)
         primary_trainer.scheduler.step()
 
-        # if epoch == 5:
-        #     primary_trainer.static_freeze_model()
+        if epoch == 15:
+            primary_trainer.static_freeze_model(degree=3)
+            new_frozen_params = sum(p.numel() for p in primary_trainer.net.parameters() if not p.requires_grad)
 
     print(primary_trainer.accuracy)
+    print(original_frozen_params)
+    print(new_frozen_params)
                 
             
 

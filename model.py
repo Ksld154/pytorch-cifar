@@ -41,6 +41,8 @@ class MyModel():
         # net = MobileNet()
         if model_name == 'resnet':
             net = ResNet18()
+        elif model_name == 'lenet':
+            net = LeNet()
         else:
             net = MobileNetV2()
         # net = DPN92()
@@ -57,7 +59,9 @@ class MyModel():
         print(len(net.layers))
 
         criterion = nn.CrossEntropyLoss()
-        optimizer = optim.SGD(net.parameters(), lr=self.args.lr, momentum=0.9, weight_decay=5e-4)
+        # optimizer = optim.SGD(net.parameters(), lr=self.args.lr, momentum=0.9, weight_decay=5e-4)
+        optimizer = optim.SGD(filter(lambda p: p.requires_grad, net.parameters()), lr=self.args.lr, momentum=0.5)
+
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
 
         return net, criterion, optimizer, scheduler
@@ -72,8 +76,10 @@ class MyModel():
         total = 0
         for batch_idx, (inputs, targets) in enumerate(self.trainloader):
             inputs, targets = inputs.to(self.device), targets.to(self.device)
+            
             self.optimizer.zero_grad()
             outputs = self.net(inputs)
+            
             loss = self.criterion(outputs, targets)
             loss.backward()
             self.optimizer.step()
@@ -132,13 +138,17 @@ class MyModel():
             if idx < freeze_degree:
                 l.requires_grad_(False)
             # print('==============')
+
         # self.optimizer = optim.SGD(self.net.parameters(), lr=self.args.lr, momentum=0.9, weight_decay=5e-4)
-        
-        self.optimizer = optim.SGD(filter(lambda p: p.requires_grad, self.net.parameters()), lr=self.args.lr, momentum=0.9, weight_decay=5e-4)
+        # self.optimizer = optim.SGD(filter(lambda p: p.requires_grad, self.net.parameters()), lr=self.args.lr, momentum=0.9, weight_decay=5e-4)
+        self.optimizer = optim.SGD(filter(lambda p: p.requires_grad, self.net.parameters()), lr=self.args.lr, momentum=0.5)
         self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=200)
-        # torchsummary.summary(self.net, (3,28,28), device=self.device)
         self.summary()
+        # torchsummary.summary(self.net, (3,28,28), device=self.device)
     
 
     def summary(self):
-        torchsummary.summary(self.net, (3,28,28), device=self.device)
+        if self.name == 'lenet':
+            torchsummary.summary(self.net, (3,32,32), device=self.device)
+        else:
+            torchsummary.summary(self.net, (3,28,28), device=self.device)
