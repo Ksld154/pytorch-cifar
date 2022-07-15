@@ -43,6 +43,7 @@ class Client():
 
         self.setup_folders()
         pretrained_trainer = self.setup_and_pretrain(model_type=self.args.model)
+        print(f'Transmitted_weights: {pretrained_trainer.total_trainable_weights}')
         
         gf1 = None
         if self.args.gradually_freeze:
@@ -89,6 +90,8 @@ class Client():
         for e in range(self.pre_epochs):
             print(f'[Pre-Training Epoch {e+1}/{self.pre_epochs}]')
             primary_trainer.train_and_test_epoch(e+1)
+            primary_trainer.calc_frozen_ratio()
+            print(f'Transmitted_weights: {primary_trainer.total_trainable_weights}')
         return primary_trainer
 
 
@@ -103,6 +106,8 @@ class Client():
             if i == 0:
                 new_trainer.name = 'Baseline: No Freeze'
             new_trainer.accuracy = copy.deepcopy(pretrained_trainer.accuracy)
+            new_trainer.total_training_time = copy.deepcopy(pretrained_trainer.total_training_time)
+            new_trainer.total_trainable_weights = copy.deepcopy(pretrained_trainer.total_trainable_weights)
             new_trainer.model.summary()
             self.all_trainers.append(new_trainer)
             
@@ -199,6 +204,10 @@ class GraduallyFreezing():
         self.total_time = None
 
 
+        self.loss_delta_ratio = []
+        self.just_switched = False
+
+
 
     def train_process(self, cmd_args=None, transmission_overlap=False, transmission_time=0, switch_model_flag=True):
 
@@ -217,13 +226,15 @@ class GraduallyFreezing():
         primary_trainer, secondary_trainer = self.primary_trainer, self.secondary_trainer
         primary_trainer.name = f"Primary (degree={primary_trainer.freeze_idx})"
 
+
         # In each training epochs
         for e in range(self.epochs-self.pre_epochs):
         
-            secondary_trainer = primary_trainer.generate_secondary_trainer(secondary_trainer)
+            secondary_trainer = primary_trainer.generate_secondary_trainer(secondary_trainer, self.just_switched)
+            self.just_switched = False
         
-            print(f'[Epoch {(e+1)}/{self.epochs}] Base freeze layers: {primary_trainer.freeze_idx}')
-            print(f'[Epoch {(e+1)}/{self.epochs}] Next freeze layers: {secondary_trainer.freeze_idx}')
+            print(f'[Epoch {(e+1 + self.pre_epochs)}/{self.epochs}] Base freeze layers: {primary_trainer.freeze_idx}')
+            print(f'[Epoch {(e+1 + self.pre_epochs)}/{self.epochs}] Next freeze layers: {secondary_trainer.freeze_idx}')
             
             loss_1, _ = primary_trainer.train_and_test_epoch(e+1)
 
@@ -234,15 +245,23 @@ class GraduallyFreezing():
             self.layer_dicisions.append(primary_trainer.freeze_idx)
             self.loss_delta.append(loss_2 - loss_1)
             models_loss_diff = moving_average(self.loss_delta, cmd_args.window_size)
+
+            self.loss_delta_ratio.append((loss_2 - loss_1) / loss_1)
+            models_loss_diff_ratio = moving_average(self.loss_delta_ratio, cmd_args.window_size)
+
             print(f'Current Loss Diff.: {loss_2-loss_1}')
             print(f'Avg Loss Difference: {models_loss_diff}')
+
+            print(f'Current Loss Diff. Ratio : {self.loss_delta_ratio[-1]}')
+            print(f'Avg Loss Difference Ratio: {models_loss_diff_ratio}')
 
             # Update transmitted parameter amount
             primary_trainer.calc_frozen_ratio()
             secondary_trainer.calc_frozen_ratio()
+            print(f'Transmitted_weights: {primary_trainer.total_trainable_weights}')
         
 
-            if primary_trainer.is_converged(self.pre_epochs, cmd_args.window_size) and secondary_trainer.is_converged(self.pre_epochs, cmd_args.window_size):
+            if primary_trainer.is_converged(cmd_args.window_size) and secondary_trainer.is_converged(cmd_args.window_size):
                 print('*** Both model are converged! ***')
                 both_converged = True
         
@@ -254,23 +273,39 @@ class GraduallyFreezing():
                 if secondary_trainer.freeze_idx > len(secondary_trainer.model.net.layers) -1 or primary_trainer.freeze_idx >= len(primary_trainer.model.net.layers) -1:
                     continue
                 
-                # Switch model using Loss difference
-                if not np.isnan(models_loss_diff) and models_loss_diff <= LOSS_DIFF_THRESHOLD:
-                    print(f'Loss Diff.: {models_loss_diff}, is smaller than threshold, which means model#2 is better')
-                    print(f'Loss Diff.: {models_loss_diff}, we will copy model#2 to model#1')
+                # # Switch model using Loss difference
+                # if not np.isnan(models_loss_diff) and models_loss_diff <= LOSS_DIFF_THRESHOLD:
+                #     pass
+                #     print(f'Loss Diff.: {models_loss_diff}, is smaller than threshold, which means model#2 is better')
+                #     print(f'Loss Diff.: {models_loss_diff}, we will copy model#2 to model#1')
 
-                    self.loss_delta.clear()
+                #     self.loss_delta.clear()
+                #     # Approach 1
+                #     # secondary_trainer.freeze_idx = primary_trainer.freeze_idx
+                #     # primary_trainer, _ = self.switch_model_old(primary_trainer, secondary_trainer)
+                    
+                #     # Approach 3
+                #     # primary_trainer = primary_trainer.further_freeze(self.pre_epochs, True)
+                #     # 
+                #     # Approach 2
+                #     primary_trainer = self.switch_model_new(primary_trainer, secondary_trainer)
+
+                if not np.isnan(models_loss_diff_ratio) and models_loss_diff_ratio <= cmd_args.loss_diff_ratio_threshold:
+                    print(f'Loss Diff.: {models_loss_diff_ratio}, is smaller than threshold, which means model#2 is better')
+                    print(f'Loss Diff.: {models_loss_diff_ratio}, we will copy model#2 to model#1')
+
+                    self.loss_delta_ratio.clear()
                     # Approach 1
                     # secondary_trainer.freeze_idx = primary_trainer.freeze_idx
                     # primary_trainer, _ = self.switch_model_old(primary_trainer, secondary_trainer)
                     
                     # Approach 2
                     primary_trainer = self.switch_model_new(primary_trainer, secondary_trainer)
+                    self.just_switched = True
 
                     # Approach 3
                     # primary_trainer = primary_trainer.further_freeze(self.pre_epochs, True)
                     # 
-
 
         print(self.layer_dicisions)
         print(primary_trainer.accuracy)
@@ -302,12 +337,18 @@ class GraduallyFreezing():
             primary_trainer = pretrained_trainer.static_freeze(0)
             primary_trainer.name = f'Gradually Freezing: Primary Model'
             primary_trainer.accuracy = copy.deepcopy(pretrained_trainer.accuracy)
+            primary_trainer.total_training_time = copy.deepcopy(pretrained_trainer.total_training_time)
+            primary_trainer.total_trainable_weights = copy.deepcopy(pretrained_trainer.total_trainable_weights)
+            print(f'Transmitted_weights: {primary_trainer.total_trainable_weights}')
+
             # primary_trainer.model.summary()
             
             # Initailize target_model with all-layers pre-trained base model
             secondary_trainer = pretrained_trainer.static_freeze(1)
             secondary_trainer.name = "Gradually Freezing: Secondary Model"
             secondary_trainer.accuracy = copy.deepcopy(pretrained_trainer.accuracy)
+            secondary_trainer.total_training_time = copy.deepcopy(pretrained_trainer.total_training_time)
+            secondary_trainer.total_trainable_weights = copy.deepcopy(pretrained_trainer.total_trainable_weights)
             # secondary_trainer.model.summary()
         
             
@@ -324,11 +365,19 @@ class GraduallyFreezing():
         # New secondary model will be generated by primary_trainer.generate_secondary_trainer() at next epoch
         primary_trainer.freeze_idx = secondary_trainer.freeze_idx
         primary_trainer.model.net = copy.deepcopy(secondary_trainer.model.net)
+        primary_trainer.model.static_freeze_model(freeze_degree=primary_trainer.freeze_idx)
+        # primary_trainer.model.optimizer = copy.deepcopy(secondary_trainer.model.optimizer)
+        # primary_trainer.model.scheduler = copy.deepcopy(secondary_trainer.model.scheduler)
         
         new_primary_trainer = Trainer(
             model=primary_trainer.model,
             freeze_idx=primary_trainer.freeze_idx,
-            old_obj=primary_trainer)
+            old_obj=None)
+        new_primary_trainer.accuracy = copy.deepcopy(primary_trainer.accuracy)
+        new_primary_trainer.total_training_time = copy.deepcopy(primary_trainer.total_training_time)
+        new_primary_trainer.total_trainable_weights = copy.deepcopy(primary_trainer.total_trainable_weights)
+        new_primary_trainer.layer_history = copy.deepcopy(primary_trainer.layer_history)
+        
         new_primary_trainer.name = f"Primary (degree={new_primary_trainer.freeze_idx})"
         new_primary_trainer.model.summary()
         

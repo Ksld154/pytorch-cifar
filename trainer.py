@@ -49,17 +49,16 @@ class Trainer():
         self.total_trainable_weights = 0
 
 
-        for idx, l in enumerate(self.model.net.layers):
-            if idx < self.freeze_idx:
-                l.requires_grad_(False)
-            # print(idx, l)
-        # self.model.summary()
+        # for idx, l in enumerate(self.model.net.layers):
+        #     if idx < self.freeze_idx:
+        #         l.requires_grad_(False)
 
-        # self.optimizer = optim.SGD(self.net.parameters(), lr=self.args.lr, momentum=0.9, weight_decay=5e-4)
-        # self.optimizer = optim.SGD(filter(lambda p: p.requires_grad, self.model.net.parameters()), lr=self.args.lr, momentum=0.9, weight_decay=5e-4)
-        self.optimizer = optim.SGD(filter(lambda p: p.requires_grad, self.model.net.parameters()), lr=self.args.lr, momentum=0.5)
-        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=200)
-        # torchsummary.summary(self.model.net, (3,28,28))
+        # # self.optimizer = optim.SGD(self.net.parameters(), lr=self.args.lr, momentum=0.9, weight_decay=5e-4)
+        # # self.optimizer = optim.SGD(filter(lambda p: p.requires_grad, self.model.net.parameters()), lr=self.args.lr, momentum=0.9, weight_decay=5e-4)
+        # self.optimizer = optim.SGD(filter(lambda p: p.requires_grad, self.model.net.parameters()), lr=self.args.lr, momentum=0.5)
+        # self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=200)
+        # self.model.summary()
+        print(f'{self.name} {self.freeze_idx}')
 
         if old_obj:
             self.loss = old_obj.loss
@@ -138,41 +137,13 @@ class Trainer():
 
         return model_utility
 
-    def is_converged(self, pre_epochs=3, window_size=MOVING_AVERAGE_WINDOW_SIZE):
-        delta_ma = moving_average(self.loss_delta[pre_epochs:], window_size)
+    def is_converged(self, window_size=MOVING_AVERAGE_WINDOW_SIZE):
+        delta_ma = moving_average(self.loss_delta[:], window_size)
         print(f'Trainer {self.name} loss delta: {delta_ma}')
         if not np.isnan(delta_ma) and delta_ma <= LOSS_CONVERGED_THRESHOLD:
             return True
         else:
             return False
-
-    # deprecated
-    def further_freeze(self, pre_epochs, force_freeze):
-        # if force_freeze or self.is_converged(pre_epochs):
-        #     if self.freeze_idx >= len(self.freeze_options) -1:
-        #         return self
-            
-        #     print(f"Model {self.name} is converge, will advance to next freezing degree{self.freeze_idx+1}")
-        #     self.freeze_idx += 1
-            
-        #     # old_weights = self.get_model().get_weights()
-        #     # new_model = keras.models.clone_model(self.get_model())
-        #     # new_model.set_weights(old_weights)
-
-
-        #     new_model = MyModel(args=self.args, trainloader=self.model.trainloader, testloader=self.model.testloader, model_name=self.name)
-        #     new_net = copy.deepcopy(self.model.net)
-        #     new_model.net = new_net
-        #     # new_model.static_freeze_model(freeze_degree=self.freeze_idx+1)
-
-        #     new_trainer = Trainer(model=new_model, freeze_idx=self.freeze_idx, old_obj=self)
-        #     new_trainer.set_model_name(f"Frozen_degree_{self.freeze_idx}")
-        #     new_trainer.loss_delta.clear()
-        
-        #     return new_trainer
-        
-        # return self
-        pass
 
     
     # generate a static freeze trainer with degree=freeze_degree
@@ -193,7 +164,7 @@ class Trainer():
         
 
     # generate a secondary trainer object that freeze 1 layer deeper than primary trainer
-    def generate_secondary_trainer(self, old_secondary_trainer):
+    def generate_secondary_trainer(self, old_secondary_trainer, just_switched):
         if self.freeze_idx >= len(self.model.net.layers) -1:
             return copy.deepcopy(self)            
         print(f"Generate a secondary model with freezing degree={self.freeze_idx+1} from primary trainer")
@@ -201,9 +172,20 @@ class Trainer():
         new_model = MyModel(args=self.args, trainloader=self.model.trainloader, testloader=self.model.testloader, model_name=self.model_type)
         new_net = copy.deepcopy(self.model.net)
         new_model.net = new_net
-        # new_model.static_freeze_model(freeze_degree=self.freeze_idx+1)
+        new_model.static_freeze_model(freeze_degree=self.freeze_idx+1)
+        # if not just_switched:
+        #     new_model.optimizer = copy.deepcopy(old_secondary_trainer.model.optimizer)
+        #     new_model.scheduler = copy.deepcopy(old_secondary_trainer.model.scheduler)
 
-        new_trainer = Trainer(model=new_model, freeze_idx=self.freeze_idx+1, old_obj=old_secondary_trainer)
+        new_trainer = Trainer(model=new_model, freeze_idx=self.freeze_idx+1, old_obj=False)
+        new_trainer.loss = copy.deepcopy(old_secondary_trainer.loss)
+        new_trainer.loss_delta = copy.deepcopy(old_secondary_trainer.loss_delta)
+
+        new_trainer.accuracy = copy.deepcopy(old_secondary_trainer.accuracy)
+        new_trainer.total_training_time = copy.deepcopy(old_secondary_trainer.total_training_time)
+        new_trainer.total_trainable_weights = copy.deepcopy(old_secondary_trainer.total_trainable_weights)
+        new_trainer.layer_history = copy.deepcopy(old_secondary_trainer.layer_history)
+        
         new_trainer.name = f"Secondary (Frozen_degree={self.freeze_idx+1})"
         # new_trainer.loss_delta.clear()
 

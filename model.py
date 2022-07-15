@@ -144,7 +144,6 @@ class MyModel():
         self.optimizer = optim.SGD(filter(lambda p: p.requires_grad, self.net.parameters()), lr=self.args.lr, momentum=0.5)
         self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=200)
         self.summary()
-        # torchsummary.summary(self.net, (3,28,28), device=self.device)
     
 
     def summary(self):

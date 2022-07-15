@@ -107,4 +107,10 @@ def opt_parser():
                         type=float,
                         help='Pre-Training epoches (default: %(default))')
 
+    parser.add_argument('--loss_diff_ratio',
+                        dest='loss_diff_ratio_threshold',
+                        default=0.05,
+                        type=float,
+                        help='Threshold of loss difference deciding when to switch model (default: %(default))')
+
     return parser.parse_args()
