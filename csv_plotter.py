@@ -48,6 +48,20 @@ def plot_best_acc(output_dir=None, model_type=None):
     new_plotter.save_figure(os.path.join(output_dir, f'{model_type}_best_acc.png'))  
 
 
+def plot_acc(output_dir=None, model_type=None):
+    csv_file_1 = RESULT_CSV_1
+    csv_file_2 = RESULT_CSV_2
+    
+    # raw_data = []
+    csv1_raw_data = csv_exporter.import_csv(filepath=csv_file_1)
+    # print(csv1_raw_data)
+    new_plotter.plot_acc(all_data=csv1_raw_data, figure_idx=4)
+    new_plotter.save_figure(os.path.join(output_dir, f'{model_type}_pre0.1_acc.png')) 
+    
+    csv2_raw_data = csv_exporter.import_csv(filepath=csv_file_2)
+    new_plotter.plot_acc(all_data=csv2_raw_data, figure_idx=5)
+    new_plotter.save_figure(os.path.join(output_dir, f'{model_type}_pre0.25_acc.png')) 
+
 def plot_total_training_time(output_dir=None, model_type=None):
     csv_file_1 = METRIC_CSV_1
     csv_file_2 = METRIC_CSV_2
@@ -61,7 +75,7 @@ def plot_total_training_time(output_dir=None, model_type=None):
         new_all_data.append(new_plotter.calc_transmission_speedup(all_data=data))
     print(new_all_data)
 
-    new_plotter.plot_training_time(all_data=new_all_data,  figure_idx=4, model_type=model_type)
+    new_plotter.plot_training_time(all_data=new_all_data,  figure_idx=10, model_type=model_type)
     new_plotter.save_figure(os.path.join(output_dir, f'{model_type}_total_training_time.png')) 
 
 
@@ -73,7 +87,7 @@ def plot_total_trainable_params(output_dir=None, model_type=None):
     raw_data.append(csv_exporter.import_csv(filepath=csv_file_1))
     raw_data.append(csv_exporter.import_csv(filepath=csv_file_2))
 
-    new_plotter.plot_transmission_volume(all_data=raw_data,  figure_idx=5, model_type=model_type)
+    new_plotter.plot_transmission_volume(all_data=raw_data,  figure_idx=11, model_type=model_type)
     new_plotter.save_figure(os.path.join(output_dir, f'{model_type}_total_trainable_params.png')) 
     new_plotter.block_show()
 
@@ -88,8 +102,12 @@ if __name__ == '__main__':
         model_type = 'lenet'
     output_dir = setup_folders(model_type=model_type)
 
-    plot_best_acc(output_dir=output_dir, model_type=model_type)
+    # plot_best_acc(output_dir=output_dir, model_type=model_type)
+    # time.sleep(1)
+    
+    plot_acc(output_dir=output_dir, model_type=model_type)
     time.sleep(1)
+    
     plot_total_training_time(output_dir=output_dir, model_type=model_type)
     time.sleep(1)
     plot_total_trainable_params(output_dir=output_dir, model_type=model_type)

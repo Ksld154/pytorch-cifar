@@ -32,6 +32,27 @@ def multiplot(all_data, y_label, title, figure_idx):
                  linestyle="-")
     plt.legend(loc='lower right')
 
+def plot_acc(all_data, figure_idx):
+    ax1 = plt.figure(num=figure_idx, figsize=(8, 6)).gca()
+    ax1.xaxis.set_major_locator(MaxNLocator(integer=True)) # integer x-axis
+
+    plt.title('')
+    plt.ylabel('Accuracy')   # y label
+    plt.xlabel("Epochs")  # x label
+    font = {'size'   : 12}
+    plt.rc('font', **font)
+
+    for data in all_data:
+        # print(len(data.get('acc')))
+
+        acc = eval(data.get('acc'))
+        print(len(acc))
+        plt.plot(acc,
+                 label=data.get('name'),
+                 marker="o",
+                 linestyle="-")
+    plt.legend(loc='lower right')
+
 def show():
     plt.tight_layout()
     plt.show(block=False)
@@ -188,7 +209,7 @@ def plot_speedup_ratio(all_data, title, figure_idx):
 
 
 def plot_training_time(all_data, figure_idx, model_type):
-    font = {'size'   : 16}
+    font = {'size'   : 14}
     plt.rc('font', **font)
     ax1 = plt.figure(num=figure_idx, figsize=(6, 6)).gca()
     ax1.xaxis.set_major_locator(MaxNLocator(integer=True)) # integer x-axis
@@ -238,7 +259,7 @@ def plot_training_time(all_data, figure_idx, model_type):
         leg.set_draggable(state=True)    
 
 def plot_transmission_volume(all_data, figure_idx, model_type):
-    font = {'size'   : 16}
+    font = {'size'   : 14}
     plt.rc('font', **font)
     ax1 = plt.figure(num=figure_idx, figsize=(6, 6)).gca()
     ax1.xaxis.set_major_locator(MaxNLocator(integer=True)) # integer x-axis
